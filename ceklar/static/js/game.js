@@ -1,4 +1,6 @@
 window.onload = function () {    
+
+    registerSW();
     window.game = new Game();
 }
 
@@ -199,4 +201,15 @@ function findPlayer(array, touch) {
         if (array[i] != undefined && array[i].info.identifier == touch.identifier)
             return i;
     return -1;
+}
+
+async function registerSW() {
+    if ('serviceWorker' in navigator) {
+        try {
+            await navigator.serviceWorker.register('./sw.js');
+        }
+        catch (e) {
+            console.log(`SW registration failed`);
+        }
+    }
 }
