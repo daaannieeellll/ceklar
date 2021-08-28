@@ -2,6 +2,10 @@ window.onload = function () {
 
     registerSW();
     window.game = new Game();
+    window.minigames =
+        [
+            new Randomizer()
+        ];
 }
 
 let COLORS =
@@ -34,14 +38,10 @@ class Game {
 
 
         document.body.appendChild(this.canvas);
+        this.toggleEventlisteners();
 
-        this.canvas.addEventListener("touchstart", this.touchChange.bind(this));
-        this.canvas.addEventListener("touchend", this.touchChange.bind(this));
-        this.canvas.addEventListener("touchcancel", this.touchChange.bind(this));
-        this.canvas.addEventListener("touchmove", this.touchMove.bind(this));
-
-        window.addEventListener("resize", this.resizeCanvas.bind(this));
-        this.resizeCanvas(this);
+        window.onresize = this.resizeCanvas.bind(this);
+        this.resizeCanvas();
         if (this.bg) {
             document.body.style.background = this.bg;
         }
@@ -58,6 +58,20 @@ class Game {
                 reject();
             } );
         });
+    }
+
+    toggleEventlisteners() {
+        if (this.canvas.ontouchstart) {
+            this.canvas.ontouchstart = null;
+            this.canvas.ontouchend = null;
+            this.canvas.ontouchcancel = null;
+            this.canvas.ontouchmove = null;
+        } else {
+            this.canvas.ontouchstart = this.touchChange.bind(this);
+            this.canvas.ontouchend = this.touchChange.bind(this);
+            this.canvas.ontouchcancel = this.touchChange.bind(this);
+            this.canvas.ontouchmove = this.touchMove.bind(this);
+        }
     }
 
     touchChange(event) {
@@ -90,7 +104,7 @@ class Game {
         this.abortController = new AbortController();
         this.wait(this.waitingInterval, this.abortController.signal)
             .then(() => {
-                    self.startRandomizer();
+                    this.startMiniGame();
                 })
             .catch(()=>{});
         return true;
@@ -148,9 +162,12 @@ class Game {
         ctx.fill();
     }
 
-    startRandomizer() {
-        if (this.players.length > 1) {
-            this.bg = "#1f1";
+    async startMiniGame() {
+        if (this.players.length > 1)
+        {
+            this.toggleEventlisteners();
+            window.minigames[0].start(this.canvas, this.players);
+            this.toggleEventlisteners();
         }
     }
 
@@ -168,10 +185,111 @@ class Player {
 }
 
 class Minigame {
-    constructor(canvas, players) {
+    constructor() {
+        this.bg = "black";
+    }
+
+    setContext(canvas, players) {
         this.canvas = canvas;
         this.players = players;
     }
+
+    exit() {
+        throw("Game ended");
+    }
+
+    toggleEventlisteners() {
+        if (this.canvas.ontouchstart) {
+            this.canvas.ontouchstart = null;
+            this.canvas.ontouchend = null;
+            this.canvas.ontouchcancel = null;
+            this.canvas.ontouchmove = null;
+        } else {
+            this.canvas.ontouchstart = this.touchChange.bind(this);
+            this.canvas.ontouchend = this.touchChange.bind(this);
+            this.canvas.ontouchcancel = this.touchChange.bind(this);
+            this.canvas.ontouchmove = this.touchChange.bind(this);
+        }
+    }
+
+    draw() {
+        if (!this.canvas.getContext)
+            return;
+
+        var ctx = this.canvas.getContext("2d");
+        
+        if (this.bg) {
+            ctx.fillStyle = this.bg;
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        for (var i = 0; i < this.players.length; ++i) {
+            var player = this.players[i];
+            if (player) this.drawTouch(ctx, player);
+        }
+    }
+
+    drawTouch(ctx, player) {
+        var px = player.info.pageX;
+        var py = player.info.pageY;
+        ctx.beginPath();
+        ctx.arc(px, py, player.radius, 0, Math.PI * 2, false);
+        ctx.fillStyle = player.color;
+        ctx.fill();
+    }
+}
+
+class Randomizer extends Minigame {
+    constructor() {
+        super();
+    }
+
+    start(canvas, players) {
+        this.setContext(canvas, players);
+        this.toggleEventlisteners();
+        this.canvas.ontouchcancel = this.exit;
+        this.canvas.ontouchend = this.exit;
+
+        this.players[Math.floor(Math.random() * this.players.length)].color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+        this.toggleEventlisteners();
+    }
+
+    touchChange(event) {
+        var self = this;
+        this.currentEvent = event;
+        event.preventDefault;
+
+        var touches = event.changedTouches;
+        for (var i = 0; i < touches.length; i++) {
+            switch (event.type) {
+                case "touchstart":
+                    console.log("new touch");
+                    storePlayer(this.players, new Player(touches[i]));
+                    break;
+                case "touchend":
+                case "touchcancel":
+                    console.log("removed touch");
+                    var index = findPlayer(this.players, touches[i]);
+                    if (index >= 0) this.players[index] = null;
+                    break;
+                case "touchmove":
+                    var index = findPlayer(this.players, touches[i]);
+                    if (index >= 0) {
+                        this.players[index].info = touches[i];
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        this.draw();
+        this.currentEvent = null;
+        
+        return true;
+    }
+
 }
 
 /**
@@ -182,9 +300,6 @@ class Minigame {
  *      en groter is dan 1, wordt een spel gestart.
  * pool
  * 
- * 
- * touchstart -> flag = false && timeout 5x 1s
- * touchend   -> flag = false
 */
 
 function storePlayer(array, player) {
