@@ -251,7 +251,7 @@ class Randomizer extends Minigame {
         this.canvas.ontouchend = this.exit;
 
         this.players[Math.floor(Math.random() * this.players.length)].color = COLORS[Math.floor(Math.random() * COLORS.length)];
-
+        this.draw();
         this.toggleEventlisteners();
     }
 
